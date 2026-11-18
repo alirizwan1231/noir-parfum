@@ -61,6 +61,19 @@ function dotTexture(): THREE.CanvasTexture {
   return new THREE.CanvasTexture(c);
 }
 
+function blobTexture(): THREE.CanvasTexture {
+  const c = document.createElement("canvas");
+  c.width = c.height = 128;
+  const g = c.getContext("2d")!;
+  const grad = g.createRadialGradient(64, 64, 4, 64, 64, 62);
+  grad.addColorStop(0, "rgba(0,0,0,0.62)");
+  grad.addColorStop(0.6, "rgba(0,0,0,0.28)");
+  grad.addColorStop(1, "rgba(0,0,0,0)");
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 128, 128);
+  return new THREE.CanvasTexture(c);
+}
+
 export default function Scene3D() {
   const mountRef = useRef<HTMLDivElement>(null);
 
@@ -68,11 +81,16 @@ export default function Scene3D() {
     const mount = mountRef.current;
     if (!mount) return;
 
+    const coarse = window.matchMedia("(pointer: coarse)").matches;
+    const smallScreen = window.innerWidth < 820;
+    const weakCpu = (navigator.hardwareConcurrency || 8) <= 4;
+    const lightMode = coarse || smallScreen || weakCpu;
+
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, lightMode ? 1.25 : 1.6));
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.05;
-    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.enabled = !lightMode;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     mount.appendChild(renderer.domElement);
 
@@ -87,8 +105,8 @@ export default function Scene3D() {
 
     const key = new THREE.DirectionalLight(0xfff1dd, 2.6);
     key.position.set(3, 4.5, 3);
-    key.castShadow = true;
-    key.shadow.mapSize.set(2048, 2048);
+    key.castShadow = !lightMode;
+    key.shadow.mapSize.set(1024, 1024);
     key.shadow.camera.left = -2.2; key.shadow.camera.right = 2.2;
     key.shadow.camera.top = 2.6; key.shadow.camera.bottom = -2;
     key.shadow.radius = 7;
@@ -128,11 +146,16 @@ export default function Scene3D() {
     /* ---------- bottle ---------- */
     const goldMat = new THREE.MeshStandardMaterial({ color: 0xc9a24b, metalness: 1, roughness: 0.28 });
     const goldDark = new THREE.MeshStandardMaterial({ color: 0x8a6d2f, metalness: 1, roughness: 0.38 });
-    const glassMat = new THREE.MeshPhysicalMaterial({
-      color: 0xffffff, metalness: 0, roughness: 0.03, transmission: 1, thickness: 0.22,
-      ior: 1.45, clearcoat: 1, clearcoatRoughness: 0.04, envMapIntensity: 1.4, specularIntensity: 1,
-      attenuationColor: new THREE.Color(0xe8e2d4), attenuationDistance: 4,
-    });
+    const glassMat = lightMode
+      ? new THREE.MeshPhysicalMaterial({
+          color: 0x141414, metalness: 0, roughness: 0.06, transparent: true, opacity: 0.34,
+          clearcoat: 1, clearcoatRoughness: 0.04, envMapIntensity: 1.15, specularIntensity: 1, depthWrite: false,
+        })
+      : new THREE.MeshPhysicalMaterial({
+          color: 0xffffff, metalness: 0, roughness: 0.03, transmission: 1, thickness: 0.22,
+          ior: 1.45, clearcoat: 1, clearcoatRoughness: 0.04, envMapIntensity: 1.4, specularIntensity: 1,
+          attenuationColor: new THREE.Color(0xe8e2d4), attenuationDistance: 4,
+        });
     const liquidMat = new THREE.MeshPhysicalMaterial({
       color: s0.liquid, roughness: 0.08, metalness: 0,
       clearcoat: 1, clearcoatRoughness: 0.08, envMapIntensity: 1.1,
@@ -148,10 +171,12 @@ export default function Scene3D() {
 
     const body = new THREE.Mesh(new RoundedBoxGeometry(1.26, 1.44, 0.58, 5, 0.085), glassMat);
     body.position.y = 0.74;
+    if (lightMode) body.renderOrder = 2;
     bottle.add(body);
 
     const liquid = shadowed(new THREE.Mesh(new RoundedBoxGeometry(1.1, 1.3, 0.45, 4, 0.06), liquidMat));
     liquid.position.y = 0.68;
+    if (lightMode) liquid.renderOrder = 1;
     bottle.add(liquid);
 
     const collar = shadowed(new THREE.Mesh(new THREE.TorusGeometry(0.115, 0.022, 12, 40), goldMat));
@@ -174,10 +199,21 @@ export default function Scene3D() {
 
     const label = new THREE.Mesh(new THREE.PlaneGeometry(0.74, 0.54), labelMat);
     label.position.set(0, 0.78, 0.297);
+    if (lightMode) label.renderOrder = 3;
     bottle.add(label);
 
+    if (lightMode) {
+      const blob = new THREE.Mesh(
+        new THREE.PlaneGeometry(2.3, 1.5),
+        new THREE.MeshBasicMaterial({ map: blobTexture(), transparent: true, depthWrite: false, opacity: 0.85 })
+      );
+      blob.rotation.x = -Math.PI / 2;
+      blob.position.y = -1.172;
+      scene.add(blob);
+    }
+
     /* ---------- gold dust ---------- */
-    const pCount = 170;
+    const pCount = lightMode ? 90 : 170;
     const pos = new Float32Array(pCount * 3);
     for (let i = 0; i < pCount; i++) {
       const a = Math.random() * Math.PI * 2;
@@ -210,6 +246,10 @@ export default function Scene3D() {
     mount.addEventListener("pointerup", onUp);
     mount.addEventListener("pointercancel", onUp);
 
+    let stageVisible = true;
+    const vio = new IntersectionObserver((es) => { stageVisible = es[0].isIntersecting; }, { threshold: 0.02 });
+    vio.observe(mount);
+
     const resize = () => {
       const w = mount.clientWidth, h = mount.clientHeight;
       if (!w || !h) return;
@@ -230,9 +270,27 @@ export default function Scene3D() {
 
     const damp = (dt: number, k: number) => 1 - Math.exp(-dt * k);
 
+    let fpsAcc = 0, fpsTime = 0, downgraded = lightMode;
     const tick = () => {
       raf = requestAnimationFrame(tick);
-      const dt = Math.min(clock.getDelta(), 0.05);
+      if (!stageVisible) return;
+      const rawDt = clock.getDelta();
+      const dt = Math.min(rawDt, 0.05);
+
+      // If a desktop GPU still cannot hold ~35fps, fall back to the light glass.
+      if (!downgraded && rawDt > 0) {
+        fpsAcc += 1; fpsTime += rawDt;
+        if (fpsTime > 3.5) {
+          if (fpsAcc / fpsTime < 35) {
+            downgraded = true;
+            const gm = glassMat as THREE.MeshPhysicalMaterial;
+            gm.transmission = 0; gm.transparent = true; gm.opacity = 0.34; gm.color.set(0x141414); gm.depthWrite = false; gm.needsUpdate = true;
+            body.renderOrder = 2; liquid.renderOrder = 1; label.renderOrder = 3;
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.25));
+          }
+          fpsAcc = 0; fpsTime = 0;
+        }
+      }
       const t = clock.elapsedTime;
 
       if (!dragging) {
@@ -285,6 +343,7 @@ export default function Scene3D() {
 
     return () => {
       cancelAnimationFrame(raf);
+      vio.disconnect();
       ro.disconnect();
       mount.removeEventListener("pointerdown", onDown);
       mount.removeEventListener("pointermove", onMove);

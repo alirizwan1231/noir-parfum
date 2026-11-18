@@ -10,6 +10,7 @@ export default function Stage({ scent, setScent }: { scent: number; setScent: (i
   const [prog, setProg] = useState(0);
   const [capOpen, setCapOpen] = useState(false);
 
+  const lastRef = useRef({ act: 0, pct: -1 });
   useEffect(() => {
     let raf = 0;
     const onScroll = () => {
@@ -21,8 +22,10 @@ export default function Stage({ scent, setScent }: { scent: number; setScent: (i
         const total = r.height - window.innerHeight;
         const p = Math.min(1, Math.max(0, -r.top / total));
         stage.progress = p;
-        setProg(p);
-        setAct(p < 0.3 ? 0 : p < 0.66 ? 1 : 2);
+        const a = p < 0.3 ? 0 : p < 0.66 ? 1 : 2;
+        const pct = Math.round(p * 100);
+        if (a !== lastRef.current.act) { lastRef.current.act = a; setAct(a); }
+        if (pct !== lastRef.current.pct) { lastRef.current.pct = pct; setProg(p); }
       });
     };
     onScroll();
