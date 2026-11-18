@@ -1,0 +1,31 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html { scroll-behavior: smooth; }
+html.lenis, html.lenis body { height: auto; }
+.lenis.lenis-smooth { scroll-behavior: auto !important; }
+body { background: #08080A; overflow-x: hidden; }
+::selection { background: #C9A24B; color: #08080A; }
+::-webkit-scrollbar { width: 10px; }
+::-webkit-scrollbar-track { background: #08080A; }
+::-webkit-scrollbar-thumb { background: #26261e; border-radius: 8px; }
+
+.reveal { opacity: 0; transform: translateY(30px); transition: opacity .9s cubic-bezier(.22,1,.36,1) var(--d, 0ms), transform .9s cubic-bezier(.22,1,.36,1) var(--d, 0ms); }
+.reveal.is-visible { opacity: 1; transform: none; }
+
+@keyframes marq { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.marquee-track { animation: marq 30s linear infinite; }
+
+.stage-bg {
+  background:
+    radial-gradient(ellipse 65% 50% at 50% 42%, var(--glow, rgba(201,162,75,.16)), transparent 62%),
+    radial-gradient(ellipse 90% 65% at 50% 115%, rgba(120,100,60,.07), transparent 60%),
+    radial-gradient(ellipse 62% 48% at 50% 46%, #17171d 0%, #08080A 72%);
+  transition: background 1s ease;
+}
+.grain::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .5; mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.06'/%3E%3C/svg%3E");
+}
+canvas { touch-action: pan-y; }
